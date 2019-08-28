@@ -1,0 +1,38 @@
+{
+  "name": "linux-xorg-screencapture",
+  "version": "0.1.0",
+  "description": "Captures the Linux desktop using XOrg APIs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "node-gyp rebuild"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jangxx/node-linux-xorg-screencapture.git"
+  },
+  "keywords": [
+    "linux",
+    "screenshot",
+    "screen",
+    "cap",
+    "native",
+    "xorg"
+  ],
+  "author": "jangxx <jangxx@protonmail.com>",
+  "license": "MIT",
+  "gypfile": true,
+  "bugs": {
+    "url": "https://github.com/jangxx/node-linux-xorg-screencapture/issues"
+  },
+  "homepage": "https://github.com/jangxx/node-linux-xorg-screencapture#readme",
+  "dependencies": {
+    "node-addon-api": "^1.7.1"
+  },
+  "engines": {
+    "node": ">=8.0.0"
+  },
+  "os": [
+    "linux"
+  ]
+}
