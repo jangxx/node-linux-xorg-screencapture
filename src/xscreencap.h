@@ -5,6 +5,7 @@
 #include <chrono>
 #include <thread>
 #include <future>
+#include <unordered_map>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -13,6 +14,7 @@
 #define XRANDR_MONITORS_SUPPORTED() ((RANDR_MAJOR > 1) || (RANDR_MAJOR == 1 && RANDR_MINOR > 5))
 
 typedef struct {
+	std::string error;
 	char* data;
 	int width;
 	int height;
@@ -21,6 +23,7 @@ typedef struct {
 class XScreencap : public Napi::ObjectWrap<XScreencap> {
 	public:
 		static Napi::Object Init(Napi::Env env, Napi::Object exports);
+		static char* getImageData(XImage* img);
 
 		XScreencap(const Napi::CallbackInfo &info);
 		~XScreencap();
@@ -30,6 +33,8 @@ class XScreencap : public Napi::ObjectWrap<XScreencap> {
 		XImage* getImage(int monitor);
 
 		Napi::Value wrap_getImage(const Napi::CallbackInfo &info);
+
+		void getImageAsync(const Napi::CallbackInfo &info);
 
 		Napi::Value getMonitorCount(const Napi::CallbackInfo &info);
 
