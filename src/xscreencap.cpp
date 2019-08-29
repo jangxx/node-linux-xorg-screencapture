@@ -220,7 +220,7 @@ void XScreencap::autoCaptureFn(int delay, int monitor) {
 
         XDestroyImage(image);
 
-        m_autoCaptureThreadCallback.NonBlockingCall( &result, callback );
+        m_autoCaptureThreadCallback.BlockingCall( &result, callback );
 
         auto finish = std::chrono::high_resolution_clock::now();
 
