@@ -1,5 +1,7 @@
 #pragma once
 
+#include "types.h"
+
 #include "napi.h"
 
 #include <chrono>
@@ -11,19 +13,14 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/Xrandr.h>
 
-#define XRANDR_MONITORS_SUPPORTED() ((RANDR_MAJOR > 1) || (RANDR_MAJOR == 1 && RANDR_MINOR > 5))
+#include "getframeasyncworker.h"
 
-typedef struct {
-	std::string error;
-	char* data;
-	int width;
-	int height;
-} RESULT_TRANSPORT;
+#define XRANDR_MONITORS_SUPPORTED() ((RANDR_MAJOR > 1) || (RANDR_MAJOR == 1 && RANDR_MINOR > 5))
 
 class XScreencap : public Napi::ObjectWrap<XScreencap> {
 	public:
 		static Napi::Object Init(Napi::Env env, Napi::Object exports);
-		static char* getImageData(XImage* img);
+		static char* getImageData(XImage* img, PIXEL_FORMAT format);
 
 		XScreencap(const Napi::CallbackInfo &info);
 		~XScreencap();
@@ -49,6 +46,8 @@ class XScreencap : public Napi::ObjectWrap<XScreencap> {
 
 		Display* m_Display;
 		Window m_RootWindow;
+		PIXEL_FORMAT m_Format;
+		int m_FormatSize;
 		XWindowAttributes m_WinAttr;
 		std::thread m_autoCaptureThread;
 		bool m_autoCaptureThreadStarted;

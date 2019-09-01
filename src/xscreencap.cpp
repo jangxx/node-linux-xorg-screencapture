@@ -4,7 +4,18 @@ std::unordered_map<std::thread::id, std::thread> threadPool = {};
 
 XScreencap::XScreencap(const Napi::CallbackInfo &info) : Napi::ObjectWrap<XScreencap>(info), m_Display(NULL), m_autoCaptureThreadStarted(false)
 {
+    std::string format = info[0].As<Napi::String>().ToString();
 
+    if (format == "RGBA") {
+        m_Format = FMT_RGBA;
+        m_FormatSize = 4;
+    } else if (format == "RGB") {
+        m_Format = FMT_RGB;
+        m_FormatSize = 3;
+    } else { // default is rgba
+        m_Format = FMT_RGBA;
+        m_FormatSize = 4;
+    }
 }
 
 XScreencap::~XScreencap() {
@@ -19,8 +30,22 @@ XScreencap::~XScreencap() {
     }
 }
 
-char* XScreencap::getImageData(XImage* img) {
-    void* data = malloc(img->width * img->height * 3);
+char* XScreencap::getImageData(XImage* img, PIXEL_FORMAT format) {
+    int format_size;
+
+    switch (format) {
+        case FMT_RGB:
+            format_size = 3;
+            break;
+        case FMT_RGBA:
+            format_size = 4;
+            break;
+        default:
+            format_size = 0;
+            break;
+    }
+
+    void* data = malloc(img->width * img->height * format_size);
     char* data_pointer = reinterpret_cast<char*>(data);
 
     for (int x = 0; x < img->width; x++) {
@@ -31,9 +56,19 @@ char* XScreencap::getImageData(XImage* img) {
             char green = (pixel & img->green_mask) >> 8;
             char blue = (img->byte_order == MSBFirst) ? (pixel & img->blue_mask) >> 16 : (pixel & img->blue_mask);
 
-            data_pointer[(x + y * img->width)*3] = red;
-            data_pointer[(x + y * img->width)*3 + 1] = green;
-            data_pointer[(x + y * img->width)*3 + 2] = blue;
+            switch (format) {
+                case FMT_RGBA:
+                    data_pointer[(x + y * img->width)*format_size] = red;
+                    data_pointer[(x + y * img->width)*format_size + 1] = green;
+                    data_pointer[(x + y * img->width)*format_size + 2] = blue;
+                    data_pointer[(x + y * img->width)*format_size + 3] = 255;
+                    break;
+                case FMT_RGB:
+                    data_pointer[(x + y * img->width)*format_size] = red;
+                    data_pointer[(x + y * img->width)*format_size + 1] = green;
+                    data_pointer[(x + y * img->width)*format_size + 2] = blue;
+                    break;
+            }
         }
     }
 
@@ -100,9 +135,9 @@ Napi::Value XScreencap::wrap_getImage(const Napi::CallbackInfo &info) {
         return result;
     }
 
-    char* data = XScreencap::getImageData(image);
+    char* data = XScreencap::getImageData(image, m_Format);
 
-    Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, data, image->width * image->height * 3, [](Napi::Env env, char* data) { free(data); });
+    Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, data, image->width * image->height * m_FormatSize, [](Napi::Env env, char* data) { free(data); });
 
     result.Set("error", env.Null());
     result.Set("width", Napi::Number::New(env, (double)image->width));
@@ -115,82 +150,11 @@ Napi::Value XScreencap::wrap_getImage(const Napi::CallbackInfo &info) {
 }
 
 void XScreencap::getImageAsync(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.Env();
-
     int monitor = info[0].As<Napi::Number>().Int32Value();
     Napi::Function callback = info[1].As<Napi::Function>();
 
-    std::thread::id* thread_id_ptr = new std::thread::id;
-
-    auto finalizer = [](Napi::Env env, std::thread::id* id_ptr) {
-        std::thread::id id = *id_ptr;
-
-        threadPool[id].join();
-
-        threadPool.erase(id);
-
-        delete id_ptr;
-    };
-
-    Napi::ThreadSafeFunction ts_callback = Napi::ThreadSafeFunction::New(env, callback, "getImageAsyncCallback", 0, 1, finalizer, thread_id_ptr);
-
-    std::thread thread = std::thread([monitor] (XScreencap* xsc, Napi::ThreadSafeFunction& callback) {
-        auto call_fn = [](Napi::Env env, Napi::Function fn, RESULT_TRANSPORT* resultRaw) {
-            Napi::Object result = Napi::Object::New(env);
-            if (resultRaw->error == "") {
-                result.Set("error", env.Null());
-            } else {
-                result.Set("error", Napi::String::New(env, resultRaw->error));
-            }
-            
-            result.Set("width", Napi::Number::New(env, (double)resultRaw->width));
-            result.Set("height", Napi::Number::New(env, (double)resultRaw->height));
-
-            Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, resultRaw->data, resultRaw->width * resultRaw->height * 3, [](Napi::Env env, char* data) { free(data); });
-
-            result.Set("data", buf);
-
-            printf("%d %d\n", resultRaw->width, resultRaw->height);
-
-            fn.Call({ result });
-        };
-
-        // RESULT_TRANSPORT result;
-        RESULT_TRANSPORT result;
-
-        XImage* image = xsc->getImage(monitor);
-
-        if (image == NULL) {
-            result.error = "Not connected to X server";
-            callback.BlockingCall(&result, call_fn);
-            callback.Release();
-            return;
-        }
-
-        char* data = XScreencap::getImageData(image);
-
-        printf("%d %d\n", image->width, image->height);
-
-        result.data = data;
-        result.width = image->width;
-        result.height = image->height;
-
-        XDestroyImage(image);
-
-        printf("%d %d\n", result.width, result.height);
-
-        callback.NonBlockingCall(&result, call_fn);
-        callback.Release();
-
-        printf("async end\n");
-
-        return;
-    }, this, std::ref(ts_callback));
-
-    std::thread::id thread_id = thread.get_id();
-    threadPool[thread.get_id()] = std::move(thread);
-    
-    memcpy(thread_id_ptr, &thread_id, sizeof(std::thread::id));
+    GetFrameAsyncWorker* worker = new GetFrameAsyncWorker(this, monitor, m_Format, m_FormatSize, callback);
+    worker->Queue();
 }
 
 Napi::Value XScreencap::getMonitorCount(const Napi::CallbackInfo &info) {
@@ -249,12 +213,14 @@ Napi::Value XScreencap::stopAutoCapture(const Napi::CallbackInfo &info) {
 }
 
 void XScreencap::autoCaptureFn(int delay, int monitor) {
-    auto callback = [](Napi::Env env, Napi::Function fn, RESULT_TRANSPORT* resultRaw) {
+    int formatSize = m_FormatSize;
+
+    auto callback = [formatSize](Napi::Env env, Napi::Function fn, RESULT_TRANSPORT* resultRaw) {
         Napi::Object result = Napi::Object::New(env);
         result.Set("width", Napi::Number::New(env, (double)resultRaw->width));
         result.Set("height", Napi::Number::New(env, (double)resultRaw->height));
 
-        Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, resultRaw->data, resultRaw->width * resultRaw->height * 3, [](Napi::Env env, char* data) { free(data); });
+        Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, resultRaw->data, resultRaw->width * resultRaw->height * formatSize, [](Napi::Env env, char* data) { free(data); });
 
         result.Set("data", buf);
 
@@ -282,7 +248,7 @@ void XScreencap::autoCaptureFn(int delay, int monitor) {
             continue;
         }
 
-        char* data = XScreencap::getImageData(image);
+        char* data = XScreencap::getImageData(image, m_Format);
 
         RESULT_TRANSPORT result;
 

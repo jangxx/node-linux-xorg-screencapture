@@ -3,6 +3,7 @@
         {
             "target_name": "xscreencap",
             "sources": [
+                "src/getframeasyncworker.cpp",
                 "src/xscreencap.cpp"
             ],
             "include_dirs": [

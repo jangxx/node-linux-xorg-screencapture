@@ -1,7 +1,7 @@
 {
   "name": "linux-xorg-screencapture",
-  "version": "0.1.0",
-  "description": "Captures the Linux desktop using XOrg APIs",
+  "version": "0.1.1",
+  "description": "Captures the Linux desktop using Xorg APIs",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
