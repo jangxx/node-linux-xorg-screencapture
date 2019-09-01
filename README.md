@@ -8,7 +8,7 @@ A native Node.js addon which captures the screen content on Linux using the Xorg
 # Usage
 
 ```javascript
-const { XScreencap } = require('..');
+const { XScreencap } = require('linux-xorg-screencapture');
 
 let xsc = new XScreencap("RGBA");
 
