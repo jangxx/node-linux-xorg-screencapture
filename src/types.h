@@ -7,6 +7,7 @@ typedef struct {
 	char* data;
 	int width;
 	int height;
+	uint8_t formatSize;
 } RESULT_TRANSPORT;
 
 enum PIXEL_FORMAT {

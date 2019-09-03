@@ -181,9 +181,10 @@ Napi::Value XScreencap::startAutoCapture(const Napi::CallbackInfo &info) {
 
     int delay = info[0].As<Napi::Number>().Int32Value();
     int monitor = info[1].As<Napi::Number>().Int32Value();
-    Napi::Function callback = info[2].As<Napi::Function>();
+    bool allow_skips = info[2].As<Napi::Boolean>().Value();
+    Napi::Function callback = info[3].As<Napi::Function>();
 
-    m_autoCaptureThreadCallback = Napi::ThreadSafeFunction::New(env, callback, "AutoCaptureThreadCallback", 1, 1);
+    m_autoCaptureThreadCallback = Napi::ThreadSafeFunction::New(env, callback, "AutoCaptureThreadCallback", (allow_skips) ? 1 : 0, 1);
 
     m_autoCaptureThreadSignal = std::promise<void>();
 
@@ -212,21 +213,21 @@ Napi::Value XScreencap::stopAutoCapture(const Napi::CallbackInfo &info) {
     return Napi::Boolean::New(env, true);
 }
 
+void XScreencap::autoCaptureFnJsCallback(Napi::Env env, Napi::Function fn, RESULT_TRANSPORT* resultRaw) {
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("width", Napi::Number::New(env, (double)resultRaw->width));
+    result.Set("height", Napi::Number::New(env, (double)resultRaw->height));
+
+    Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, resultRaw->data, resultRaw->width * resultRaw->height * resultRaw->formatSize, [](Napi::Env env, char* data) { free(data); });
+
+    result.Set("data", buf);
+
+    fn.Call({ result });
+
+    delete resultRaw;
+}
+
 void XScreencap::autoCaptureFn(int delay, int monitor) {
-    int formatSize = m_FormatSize;
-
-    auto callback = [formatSize](Napi::Env env, Napi::Function fn, RESULT_TRANSPORT* resultRaw) {
-        Napi::Object result = Napi::Object::New(env);
-        result.Set("width", Napi::Number::New(env, (double)resultRaw->width));
-        result.Set("height", Napi::Number::New(env, (double)resultRaw->height));
-
-        Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, resultRaw->data, resultRaw->width * resultRaw->height * formatSize, [](Napi::Env env, char* data) { free(data); });
-
-        result.Set("data", buf);
-
-        fn.Call({ result });
-    };
-
     std::future<void> signal = m_autoCaptureThreadSignal.get_future();
 
     while (signal.wait_for(std::chrono::milliseconds(1)) == std::future_status::timeout) {
@@ -250,15 +251,22 @@ void XScreencap::autoCaptureFn(int delay, int monitor) {
 
         char* data = XScreencap::getImageData(image, m_Format);
 
-        RESULT_TRANSPORT result;
+        RESULT_TRANSPORT* result = new RESULT_TRANSPORT{};
 
-        result.data = data;
-        result.width = image->width;
-        result.height = image->height;
+        result->data = data;
+        result->width = image->width;
+        result->height = image->height;
+        result->formatSize = m_FormatSize;
 
         XDestroyImage(image);
 
-        m_autoCaptureThreadCallback.BlockingCall( &result, callback );
+        napi_status status = m_autoCaptureThreadCallback.NonBlockingCall( result, autoCaptureFnJsCallback );
+
+        if (status != napi_ok) {
+			// free data manually if we can't transfer the responsibility to the GC
+			free(image->data);
+			delete result;
+		}
 
         auto finish = std::chrono::high_resolution_clock::now();
 

@@ -26,21 +26,16 @@ class XScreencap : public Napi::ObjectWrap<XScreencap> {
 		~XScreencap();
 
 		Napi::Value connect(const Napi::CallbackInfo &info);
-
 		XImage* getImage(int monitor);
-
 		Napi::Value wrap_getImage(const Napi::CallbackInfo &info);
-
 		void getImageAsync(const Napi::CallbackInfo &info);
-
 		Napi::Value getMonitorCount(const Napi::CallbackInfo &info);
-
 		Napi::Value startAutoCapture(const Napi::CallbackInfo &info);
-
 		Napi::Value stopAutoCapture(const Napi::CallbackInfo &info);
 
 	private:
 		static Napi::FunctionReference constructor;
+		static void autoCaptureFnJsCallback(Napi::Env env, Napi::Function fn, RESULT_TRANSPORT* resultRaw);
 
 		void autoCaptureFn(int delay, int monitor);
 
@@ -49,6 +44,7 @@ class XScreencap : public Napi::ObjectWrap<XScreencap> {
 		PIXEL_FORMAT m_Format;
 		int m_FormatSize;
 		XWindowAttributes m_WinAttr;
+
 		std::thread m_autoCaptureThread;
 		bool m_autoCaptureThreadStarted;
 		std::promise<void> m_autoCaptureThreadSignal;

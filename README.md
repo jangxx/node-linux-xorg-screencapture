@@ -72,14 +72,17 @@ The method either returns an image in the default format or throws an error.
 **getImageAsync**(monitor)  
 Asynchronous version of `getImage`, which returns a promise resolving to image data in the default format.
 
-**startAutoCapture**(delay, monitor)  
+**startAutoCapture**(delay, monitor, ?allowSkips)  
 Starts a new thread, which tries to capture the screen every `delay` milliseconds.
 Image data is then emitted as an **image** event.
-This method functions similar to `setInterval(() => xsc.getImageAsync().then(image => emit("image", image)), delay)`, but with the added bonus of all the timing stuff happening in native code and a separate thread, which should improve the performance. **Note**: You can only have one of these threads running at any time, so subsequent calls to `startAutoCapture` without stopping the auto capture in between have no effect.
+This method functions similar to `setInterval(() => xsc.getImageAsync().then(image => emit("image", image)), delay)`, but with the added bonus of all the timing stuff happening in native code and a separate thread, which improves the performance. **Note**: You can only have one of these threads running at any time, so subsequent calls to `startAutoCapture` without stopping the auto capture in between have no effect.
+The optional parameter `allowSkips` controls how the thread queues up the **image** events.
+If the event did not have a chance to fire before the next image is captured, it can either be queued up (`allowSkips = false`) or just be thrown away (`allowSkips = true`, default).
 
-**stopAutoCapture**()  
+**stopAutoCapture**(?clearBacklog)  
 Stops the auto capture thread.
-No futher **image** events will be emitted after this method has been called.
+By default, no futher **image** events will be emitted after this method has been called, since `clearBacklog` is `true` by default.
+If you want to process every captured frame however, set `clearBacklog` to `false`.
 
 # Events
 
