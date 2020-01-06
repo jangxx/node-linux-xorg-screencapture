@@ -18,6 +18,11 @@ void GetFrameAsyncWorker::Execute() {
 
     char* data = XScreencap::getImageData(image, m_Format);
 
+	if (data == NULL) {
+		m_Result.error = "Could not allocate buffer for image data";
+		return;
+	}
+
 	m_Result.data = data;
 	m_Result.width = image->width;
 	m_Result.height = image->height;
@@ -34,7 +39,9 @@ std::vector<napi_value> GetFrameAsyncWorker::GetResult(Napi::Env env) {
 		result.Set("error", m_Result.error);
 	}
 	
-	Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, m_Result.data, m_Result.width * m_Result.height * m_FormatSize, [](Napi::Env env, char* data) { free(data); });
+	Napi::Buffer<char> buf = Napi::Buffer<char>::Copy(env, m_Result.data, m_Result.width * m_Result.height * m_FormatSize);
+
+	free(m_Result.data);
 
 	result.Set("error", env.Null());
     result.Set("width", Napi::Number::New(env, (double)m_Result.width));

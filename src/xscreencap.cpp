@@ -46,6 +46,11 @@ char* XScreencap::getImageData(XImage* img, PIXEL_FORMAT format) {
     }
 
     void* data = malloc(img->width * img->height * format_size);
+
+    if (data == NULL) {
+        return NULL;
+    }
+
     char* data_pointer = reinterpret_cast<char*>(data);
 
     for (int x = 0; x < img->width; x++) {
@@ -137,7 +142,14 @@ Napi::Value XScreencap::wrap_getImage(const Napi::CallbackInfo &info) {
 
     char* data = XScreencap::getImageData(image, m_Format);
 
-    Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, data, image->width * image->height * m_FormatSize, [](Napi::Env env, char* data) { free(data); });
+    if (data == NULL) {
+        result.Set("error", "Could not allocate buffer for image data");
+        return result;
+    }
+
+    Napi::Buffer<char> buf = Napi::Buffer<char>::Copy(env, data, image->width * image->height * m_FormatSize);
+
+    free(data);
 
     result.Set("error", env.Null());
     result.Set("width", Napi::Number::New(env, (double)image->width));
@@ -218,7 +230,9 @@ void XScreencap::autoCaptureFnJsCallback(Napi::Env env, Napi::Function fn, RESUL
     result.Set("width", Napi::Number::New(env, (double)resultRaw->width));
     result.Set("height", Napi::Number::New(env, (double)resultRaw->height));
 
-    Napi::Buffer<char> buf = Napi::Buffer<char>::New(env, resultRaw->data, resultRaw->width * resultRaw->height * resultRaw->formatSize, [](Napi::Env env, char* data) { free(data); });
+    Napi::Buffer<char> buf = Napi::Buffer<char>::Copy(env, resultRaw->data, resultRaw->width * resultRaw->height * resultRaw->formatSize);
+
+    free(resultRaw->data);
 
     result.Set("data", buf);
 
